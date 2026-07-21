@@ -70,24 +70,34 @@ def train_xgboost(daily_feat: pd.DataFrame) -> tuple:
     X = daily_feat[feature_cols]
     y = daily_feat['total_sales']
 
+    # log transform pra reduzir variabilidade
+    y_log = np.log1p(y)
+
     # time series split — last 60 rows as test
     train_size = len(daily_feat) - 60
     X_train, X_test = X.iloc[:train_size], X.iloc[train_size:]
-    y_train, y_test = y.iloc[:train_size], y.iloc[train_size:]
+    y_train, y_test = y_log.iloc[:train_size], y_log.iloc[train_size:]
+    y_test_orig = np.expm1(y_test)
 
     model = xgb.XGBRegressor(
-        n_estimators=300,
-        learning_rate=0.05,
-        max_depth=5,
+        n_estimators=500,
+        learning_rate=0.03,
+        max_depth=4,
         subsample=0.8,
         colsample_bytree=0.8,
+        min_child_weight=3,
         random_state=42,
         verbosity=0
     )
-    model.fit(X_train, y_train)
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_test, y_test)],
+        verbose=False
+    )
 
-    y_pred = model.predict(X_test)
-    metrics = evaluate(y_test, y_pred, 'XGBoost')
+    y_pred_log = model.predict(X_test)
+    y_pred = np.expm1(y_pred_log)
+    metrics = evaluate(y_test_orig, y_pred, 'XGBoost')
 
     # save
     with open(MODELS_PATH / "xgboost_model.pkl", "wb") as f:
@@ -103,7 +113,7 @@ def train_xgboost(daily_feat: pd.DataFrame) -> tuple:
     print(importance.head())
 
     print("  XGBoost model saved!")
-    return model, y_pred, y_test, metrics, importance
+    return model, y_pred, y_test_orig, metrics, importance
 
 
 if __name__ == "__main__":

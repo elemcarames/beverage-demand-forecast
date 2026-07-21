@@ -34,6 +34,10 @@ def make_daily_series(trans: pd.DataFrame) -> pd.DataFrame:
     # remove dias sem venda
     daily = daily[daily['total_sales'] > 0].reset_index(drop=True)
 
+    # remove outliers extremos
+    p99 = daily['total_sales'].quantile(0.99)
+    daily = daily[daily['total_sales'] <= p99].reset_index(drop=True)
+
     return daily
 
 
